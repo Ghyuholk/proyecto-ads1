@@ -1,0 +1,13 @@
+ 
+.logo-login{
+  height: 150px;       /* ajusta 48/64/80 según tu imagen */
+  max-width: 100%;
+  object-fit: contain;
+}
+.brand {
+  font-weight: 700;
+  color: #16a34a;     
+  letter-spacing: .5px;
+  font-size: 1rem;
+  text-transform: uppercase;
+}
