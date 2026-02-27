@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Caja{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h2>Dashboard Caja</h2>
+  <p>Flujo simple: abrir caja -> cobrar pedidos SERVIDOS -> cerrar caja.</p>
+  <p><strong>Caja abierta:</strong> {{ 'Sí' if caja_estado.abierta else 'No' }}</p>
+  {% if caja_estado.apertura %}
+    <p><strong>Apertura ID:</strong> {{ caja_estado.apertura.id }}</p>
+  {% endif %}
+</section>
+
+<section class="grid">
+  <article class="card">
+    <h3>Apertura</h3>
+    <form method="post" action="{{ url_for('apertura_caja') }}">
+      <input type="hidden" name="user_id" value="{{ session.get('user_id') }}" />
+      <input name="monto_inicial" type="number" step="0.01" placeholder="Monto inicial" required />
+      <button type="submit">Abrir caja</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <h3>Pedidos listos para cobro (SERVIDO)</h3>
+    <table>
+      <tr><th>Pedido</th><th>Mesa</th><th>Total</th><th>Acción</th></tr>
+      {% for p in pedidos_pendientes %}
+      <tr>
+        <td>#{{ p.id }}</td>
+        <td>{{ p.mesa_id }}</td>
+        <td>{{ p.total }}</td>
+        <td>
+          <form method="post" action="{{ url_for('cobro_caja') }}" class="inline-form">
+            <input type="hidden" name="pedido_id" value="{{ p.id }}" />
+            <select name="metodo"><option>EFECTIVO</option><option>TARJETA</option><option>TRANSFERENCIA</option></select>
+            <button type="submit">Cobrar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Cierre</h3>
+    <form method="post" action="{{ url_for('cierre_caja') }}">
+      <input
+        name="apertura_caja_id"
+        type="number"
+        placeholder="Apertura ID"
+        value="{{ caja_estado.apertura.id if caja_estado.apertura else '' }}"
+        required
+      />
+      <button type="submit">Cerrar caja</button>
+    </form>
+  </article>
+</section>
+{% endblock %}

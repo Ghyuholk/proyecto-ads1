@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Garrobito{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-logo" src="{{ url_for('static', filename='img/logo.jpeg') }}" alt="Logo Garrobito" />
+        <h1>Garrobito</h1>
+      </div>
+      {% if session.get('username') %}
+      <div class="topbar-meta">
+        <p>Usuario: <strong>{{ session.get('username') }}</strong> ({{ session.get('role') }})</p>
+        <a class="logout-btn" href="{{ url_for('logout') }}">Salir</a>
+      </div>
+      {% endif %}
+    </header>
+    <main class="container">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <section class="card">
+            {% for category, message in messages %}
+              <p class="msg {{ category }}">{{ message }}</p>
+            {% endfor %}
+          </section>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard ADMIN{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h2>Dashboard Admin</h2>
+  <p><strong>Caja abierta:</strong> {{ 'Sí' if caja_estado.abierta else 'No' }}</p>
+</section>
+
+<section class="grid">
+  <article class="card">
+    <h3>Usuarios</h3>
+    <form method="post" action="{{ url_for('register_user') }}">
+      <input name="username" placeholder="username" required />
+      <input name="password" type="password" placeholder="password" required />
+      <select name="role"><option>ADMIN</option><option>CAJERO</option><option>MESERO</option><option>COCINA</option></select>
+      <button type="submit">Crear usuario</button>
+    </form>
+    <table>
+      <tr><th>ID</th><th>User</th><th>Rol</th></tr>
+      {% for u in users %}<tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td>{{ u.role }}</td></tr>{% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Mesas</h3>
+    <form method="post" action="{{ url_for('create_mesa') }}">
+      <input name="numero" type="number" min="1" placeholder="Número" required />
+      <select name="estado"><option>LIBRE</option><option>OCUPADA</option></select>
+      <button type="submit">Crear mesa</button>
+    </form>
+    <table>
+      <tr><th>ID</th><th>Número</th><th>Estado</th></tr>
+      {% for m in mesas %}<tr><td>{{ m.id }}</td><td>{{ m.numero }}</td><td>{{ m.estado }}</td></tr>{% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Productos</h3>
+    <form method="post" action="{{ url_for('create_producto') }}">
+      <input name="nombre" placeholder="Nombre" required />
+      <select name="unidad" required>
+        {% for unit in allowed_product_units %}
+        <option value="{{ unit }}">{{ unit }}</option>
+        {% endfor %}
+      </select>
+      <input name="stock_actual" type="number" step="0.01" placeholder="Stock inicial" />
+      <input name="costo_promedio" type="number" step="0.01" placeholder="Costo" />
+      <button type="submit">Crear producto</button>
+    </form>
+    <table>
+      <tr><th>ID</th><th>Nombre</th><th>Stock</th><th>Costo</th><th>Activo</th><th>Kardex</th></tr>
+      {% for p in productos %}
+      <tr>
+        <td>{{ p.id }}</td><td>{{ p.nombre }}</td><td>{{ p.stock_actual }}</td><td>{{ p.costo_promedio }}</td>
+        <td>
+          <form method="post" action="{{ url_for('update_producto_estado') }}" class="inline-form">
+            <input type="hidden" name="producto_id" value="{{ p.id }}" />
+            <input type="hidden" name="activo" value="{{ 'false' if p.activo else 'true' }}" />
+            <button type="submit">{{ 'Desactivar' if p.activo else 'Activar' }}</button>
+          </form>
+        </td>
+        <td>
+          <a href="{{ url_for('dashboard_admin', kardex_producto_id=p.id) }}">Ver</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Platillos</h3>
+    <form method="post" action="{{ url_for('create_platillo') }}">
+      <input name="nombre" placeholder="Nombre" required />
+      <input name="precio" type="number" step="0.01" placeholder="Precio" required />
+      <p><strong>Receta (cantidad por 1 platillo):</strong></p>
+      <div class="ingredient-grid">
+        {% for p in productos %}
+        <label>{{ p.nombre }} ({{ p.unidad }})</label>
+        <input name="ing_{{ p.id }}" type="number" step="0.01" min="0" placeholder="0" />
+        {% endfor %}
+      </div>
+      <button type="submit">Crear platillo</button>
+    </form>
+
+    <form method="post" action="{{ url_for('update_platillo_full') }}" id="edit-platillo-form">
+      <select name="platillo_id" id="edit_platillo_id" required>
+        <option value="">Selecciona platillo a editar</option>
+        {% for p in platillos %}
+        <option value="{{ p.id }}">{{ p.nombre }}</option>
+        {% endfor %}
+      </select>
+      <input name="nombre" id="edit_nombre" placeholder="Nombre" required />
+      <input name="precio" id="edit_precio" type="number" step="0.01" placeholder="Precio" required />
+      <p><strong>Receta editable:</strong></p>
+      <div class="ingredient-grid">
+        {% for p in productos %}
+        <label>{{ p.nombre }} ({{ p.unidad }})</label>
+        <input class="edit-ingredient" data-product-id="{{ p.id }}" name="edit_ing_{{ p.id }}" type="number" step="0.01" min="0" placeholder="0" />
+        {% endfor %}
+      </div>
+      <button type="submit">Guardar cambios de platillo</button>
+    </form>
+    <table>
+      <tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Receta</th><th>Activo</th></tr>
+      {% for p in platillos %}
+      <tr>
+        <td>{{ p.id }}</td><td>{{ p.nombre }}</td><td>{{ p.precio }}</td>
+        <td>
+          {% for i in p.ingredientes %}
+          #{{ i.producto_id }} x {{ i.cantidad_por_unidad }}{% if not loop.last %}, {% endif %}
+          {% endfor %}
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('update_platillo_estado') }}" class="inline-form">
+            <input type="hidden" name="platillo_id" value="{{ p.id }}" />
+            <input type="hidden" name="activo" value="{{ 'false' if p.activo else 'true' }}" />
+            <button type="submit">{{ 'Desactivar' if p.activo else 'Activar' }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Pedidos</h3>
+    <form method="get" action="{{ url_for('dashboard_admin') }}">
+      <select name="pedido_estado">
+        <option value="">Todos los estados</option>
+        <option value="ABIERTO" {% if pedido_filters.estado == 'ABIERTO' %}selected{% endif %}>ABIERTO</option>
+        <option value="PREPARACION" {% if pedido_filters.estado == 'PREPARACION' %}selected{% endif %}>PREPARACION</option>
+        <option value="SERVIDO" {% if pedido_filters.estado == 'SERVIDO' %}selected{% endif %}>SERVIDO</option>
+        <option value="COBRADO" {% if pedido_filters.estado == 'COBRADO' %}selected{% endif %}>COBRADO</option>
+        <option value="CANCELADO" {% if pedido_filters.estado == 'CANCELADO' %}selected{% endif %}>CANCELADO</option>
+      </select>
+      <input name="pedido_date_from" type="date" value="{{ pedido_filters.date_from }}" />
+      <input name="pedido_date_to" type="date" value="{{ pedido_filters.date_to }}" />
+      <button type="submit">Filtrar</button>
+    </form>
+    <table>
+      <tr><th>ID</th><th>Mesa</th><th>Estado</th><th>Total</th></tr>
+      {% for p in pedidos %}<tr><td>{{ p.id }}</td><td>{{ p.mesa_id }}</td><td>{{ p.estado }}</td><td>{{ p.total }}</td></tr>{% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Compras</h3>
+    <form method="get" action="{{ url_for('dashboard_admin') }}">
+      <input name="compra_proveedor" placeholder="Proveedor" value="{{ compra_filters.proveedor }}" />
+      <input name="compra_date_from" type="date" value="{{ compra_filters.date_from }}" />
+      <input name="compra_date_to" type="date" value="{{ compra_filters.date_to }}" />
+      <button type="submit">Filtrar</button>
+    </form>
+    <form method="post" action="{{ url_for('create_compra') }}">
+      <input name="proveedor" placeholder="Proveedor" required />
+      <select name="producto_id" required>
+        <option value="">Producto</option>
+        {% for p in productos %}
+        <option value="{{ p.id }}">{{ p.nombre }}</option>
+        {% endfor %}
+      </select>
+      <input name="cantidad" type="number" step="0.01" placeholder="Cantidad" required />
+      <input name="costo_unitario" type="number" step="0.01" placeholder="Costo unitario" required />
+      <button type="submit">Registrar compra</button>
+    </form>
+    <table>
+      <tr><th>ID</th><th>Proveedor</th><th>Total</th></tr>
+      {% for c in compras %}<tr><td>{{ c.id }}</td><td>{{ c.proveedor }}</td><td>{{ c.total }}</td></tr>{% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Inventario Físico</h3>
+    <p>
+      Sirve para ajustar el stock del sistema contra el conteo real en bodega.
+      Primero creas el conteo (BORRADOR) y luego lo aplicas para generar AJUSTE_POS/AJUSTE_NEG en kardex.
+    </p>
+    <form method="get" action="{{ url_for('dashboard_admin') }}">
+      <select name="inv_estado">
+        <option value="">Todos los estados</option>
+        <option value="BORRADOR" {% if inventario_filters.estado == 'BORRADOR' %}selected{% endif %}>BORRADOR</option>
+        <option value="APLICADO" {% if inventario_filters.estado == 'APLICADO' %}selected{% endif %}>APLICADO</option>
+      </select>
+      <select name="inv_tipo">
+        <option value="">Todos los tipos</option>
+        <option value="INICIAL" {% if inventario_filters.tipo == 'INICIAL' %}selected{% endif %}>INICIAL</option>
+        <option value="MENSUAL" {% if inventario_filters.tipo == 'MENSUAL' %}selected{% endif %}>MENSUAL</option>
+        <option value="ANUAL" {% if inventario_filters.tipo == 'ANUAL' %}selected{% endif %}>ANUAL</option>
+      </select>
+      <input name="inv_date_from" type="date" value="{{ inventario_filters.date_from }}" />
+      <input name="inv_date_to" type="date" value="{{ inventario_filters.date_to }}" />
+      <button type="submit">Filtrar</button>
+    </form>
+    <form method="post" action="{{ url_for('create_inventario_fisico') }}">
+      <select name="tipo">
+        <option>INICIAL</option><option selected>MENSUAL</option><option>ANUAL</option>
+      </select>
+      <select name="producto_id" required>
+        <option value="">Producto</option>
+        {% for p in productos %}
+        <option value="{{ p.id }}">{{ p.nombre }}</option>
+        {% endfor %}
+      </select>
+      <input name="conteo" type="number" step="0.01" placeholder="Conteo físico" required />
+      <button type="submit">Crear inventario físico</button>
+    </form>
+
+    <form method="post" action="{{ url_for('apply_inventario_fisico') }}">
+      <select name="inventario_id" required>
+        <option value="">Inventario (BORRADOR)</option>
+        {% for inv in inventarios_fisicos %}
+        {% if inv.estado == 'BORRADOR' %}
+        <option value="{{ inv.id }}">#{{ inv.id }} - {{ inv.tipo }} - {{ inv.fecha }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      <button type="submit">Aplicar inventario físico</button>
+    </form>
+
+    <table>
+      <tr><th>ID</th><th>Tipo</th><th>Estado</th></tr>
+      {% for inv in inventarios_fisicos %}<tr><td>{{ inv.id }}</td><td>{{ inv.tipo }}</td><td>{{ inv.estado }}</td></tr>{% endfor %}
+    </table>
+  </article>
+
+  {% if kardex_data %}
+  <article class="card">
+    <h3>Kardex - {{ kardex_data.producto.nombre }}</h3>
+    <table>
+      <tr><th>ID</th><th>Tipo</th><th>Cantidad</th><th>Costo U.</th><th>Saldo</th><th>Fecha</th></tr>
+      {% for m in kardex_data.movimientos %}
+      <tr>
+        <td>{{ m.id }}</td>
+        <td>{{ m.tipo }}</td>
+        <td>{{ m.cantidad }}</td>
+        <td>{{ m.costo_unitario }}</td>
+        <td>{{ m.saldo_cantidad }}</td>
+        <td>{{ m.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </article>
+  {% endif %}
+</section>
+
+<script>
+  (function () {
+    const platillos = {{ platillos|tojson }};
+    const select = document.getElementById("edit_platillo_id");
+    const nombre = document.getElementById("edit_nombre");
+    const precio = document.getElementById("edit_precio");
+    const ingredientInputs = document.querySelectorAll(".edit-ingredient");
+
+    if (!select) return;
+
+    function resetIngredients() {
+      ingredientInputs.forEach((input) => {
+        input.value = "";
+      });
+    }
+
+    function fillForm(platilloId) {
+      const platillo = platillos.find((p) => String(p.id) === String(platilloId));
+      if (!platillo) {
+        nombre.value = "";
+        precio.value = "";
+        resetIngredients();
+        return;
+      }
+
+      nombre.value = platillo.nombre || "";
+      precio.value = platillo.precio || "";
+      resetIngredients();
+
+      (platillo.ingredientes || []).forEach((ing) => {
+        const input = document.querySelector('.edit-ingredient[data-product-id="' + ing.producto_id + '"]');
+        if (input) input.value = ing.cantidad_por_unidad;
+      });
+    }
+
+    select.addEventListener("change", function (event) {
+      fillForm(event.target.value);
+    });
+  })();
+</script>
+{% endblock %}

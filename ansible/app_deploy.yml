@@ -1,0 +1,128 @@
+---
+- name: Deploy multi-tenant Garrobito
+  hosts: app_hosts
+  gather_facts: false
+
+  vars:
+    app_name: garrobito
+    docker_network: garrobito_net
+    db_container_name: garrobito_db
+    db_root_user: root
+    db_root_password: ""
+    db_name_prefix: db_
+    db_user_prefix: usr_
+
+    client_name: Cliente
+    slug: cliente
+    app_port: 8002
+
+    backend_image: ""
+    frontend_image: ""
+
+    admin_username: admin
+    admin_password: ""
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - db_root_password | length > 0
+          - backend_image | length > 0
+          - frontend_image | length > 0
+          - admin_password | length > 0
+        fail_msg: Missing required variables. Check Jenkins credentials and image tags.
+
+    - name: Normalize tenant slug
+      ansible.builtin.set_fact:
+        tenant_slug: "{{ slug | lower | regex_replace('[^a-z0-9]+', '_') | regex_replace('(^_+|_+$)', '') }}"
+
+    - name: Build tenant identifiers
+      ansible.builtin.set_fact:
+        tenant_db_name: "{{ db_name_prefix }}{{ tenant_slug }}"
+        tenant_db_user: "{{ (db_user_prefix ~ tenant_slug)[:16] }}"
+        api_container_name: "{{ app_name }}_api_{{ tenant_slug }}"
+        web_container_name: "{{ app_name }}_web_{{ tenant_slug }}"
+
+    - name: Generate tenant secrets
+      ansible.builtin.set_fact:
+        tenant_db_password: "{{ lookup('ansible.builtin.password', '/tmp/' ~ app_name ~ '_' ~ tenant_slug ~ '_db_password length=30 chars=ascii_letters,digits') }}"
+        backend_secret_key: "{{ lookup('ansible.builtin.password', '/tmp/' ~ app_name ~ '_' ~ tenant_slug ~ '_backend_secret length=50 chars=ascii_letters,digits') }}"
+        jwt_secret_key: "{{ lookup('ansible.builtin.password', '/tmp/' ~ app_name ~ '_' ~ tenant_slug ~ '_jwt_secret length=50 chars=ascii_letters,digits') }}"
+        frontend_secret_key: "{{ lookup('ansible.builtin.password', '/tmp/' ~ app_name ~ '_' ~ tenant_slug ~ '_frontend_secret length=50 chars=ascii_letters,digits') }}"
+
+  tasks:
+    - name: Ensure shared docker network exists
+      community.docker.docker_network:
+        name: "{{ docker_network }}"
+        state: present
+
+    - name: Ensure tenant database and user exist
+      community.docker.docker_container_exec:
+        container: "{{ db_container_name }}"
+        command: >-
+          mariadb -u{{ db_root_user }} -p{{ db_root_password }}
+          -e "CREATE DATABASE IF NOT EXISTS {{ tenant_db_name }};
+          CREATE USER IF NOT EXISTS '{{ tenant_db_user }}'@'%' IDENTIFIED BY '{{ tenant_db_password }}';
+          ALTER USER '{{ tenant_db_user }}'@'%' IDENTIFIED BY '{{ tenant_db_password }}';
+          GRANT ALL PRIVILEGES ON {{ tenant_db_name }}.* TO '{{ tenant_db_user }}'@'%';
+          FLUSH PRIVILEGES;"
+
+    - name: Deploy backend container
+      community.docker.docker_container:
+        name: "{{ api_container_name }}"
+        image: "{{ backend_image }}"
+        restart_policy: unless-stopped
+        state: started
+        recreate: true
+        pull: false
+        networks:
+          - name: "{{ docker_network }}"
+        env:
+          FLASK_ENV: production
+          FLASK_DEBUG: "0"
+          HOST: 0.0.0.0
+          PORT: "5000"
+          SECRET_KEY: "{{ backend_secret_key }}"
+          JWT_SECRET_KEY: "{{ jwt_secret_key }}"
+          DATABASE_URL: "mysql+pymysql://{{ tenant_db_user }}:{{ tenant_db_password }}@{{ db_container_name }}:3306/{{ tenant_db_name }}"
+
+    - name: Run backend migrations
+      community.docker.docker_container_exec:
+        container: "{{ api_container_name }}"
+        command: flask --app run.py db upgrade
+        chdir: /app
+
+    - name: Seed or update admin user
+      community.docker.docker_container_exec:
+        container: "{{ api_container_name }}"
+        command: >-
+          sh -lc "ADMIN_USERNAME='{{ admin_username }}'
+          ADMIN_PASSWORD='{{ admin_password }}'
+          flask --app run.py seed-admin"
+        chdir: /app
+
+    - name: Deploy frontend container
+      community.docker.docker_container:
+        name: "{{ web_container_name }}"
+        image: "{{ frontend_image }}"
+        restart_policy: unless-stopped
+        state: started
+        recreate: true
+        pull: false
+        networks:
+          - name: "{{ docker_network }}"
+        published_ports:
+          - "{{ app_port }}:80"
+        env:
+          BACKEND_API_URL: "http://{{ api_container_name }}:5000"
+          FRONTEND_SECRET_KEY: "{{ frontend_secret_key }}"
+
+    - name: Wait for frontend health endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ app_port }}/health"
+        method: GET
+        status_code: 200
+      register: frontend_health
+      retries: 15
+      delay: 2
+      until: frontend_health.status == 200

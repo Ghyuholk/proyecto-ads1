@@ -1,0 +1,26 @@
+services:
+  garrobito_db:
+    image: mariadb:11.4
+    container_name: garrobito_db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?set MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${MARIADB_BOOTSTRAP_DB:-garrobito_bootstrap}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - garrobito_db_data:/var/lib/mysql
+    networks:
+      - garrobito_net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  garrobito_db_data:
+
+networks:
+  garrobito_net:
+    name: garrobito_net
+    driver: bridge

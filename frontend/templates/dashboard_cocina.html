@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Cocina{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h2>Dashboard Cocina</h2>
+  <p>Flujo simple: tomar pedidos en PREPARACION y marcarlos como SERVIDO.</p>
+</section>
+
+<section class="grid">
+  <article class="card">
+    <h3>Preparación en curso</h3>
+    <table>
+      <tr><th>Pedido</th><th>Mesa</th><th>Total</th><th>Acción</th></tr>
+      {% for p in pedidos_preparacion %}
+      <tr>
+        <td>#{{ p.id }}</td>
+        <td>{{ p.mesa_id }}</td>
+        <td>{{ p.total }}</td>
+        <td>
+          <form method="post" action="{{ url_for('update_pedido_estado') }}" class="inline-form">
+            <input type="hidden" name="pedido_id" value="{{ p.id }}" />
+            <input type="hidden" name="estado" value="SERVIDO" />
+            <button type="submit">Marcar listo</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Resumen</h3>
+    <table>
+      <tr><th>ID</th><th>Mesa</th><th>Estado</th><th>Total</th></tr>
+      {% for p in pedidos %}<tr><td>{{ p.id }}</td><td>{{ p.mesa_id }}</td><td>{{ p.estado }}</td><td>{{ p.total }}</td></tr>{% endfor %}
+    </table>
+  </article>
+</section>
+{% endblock %}

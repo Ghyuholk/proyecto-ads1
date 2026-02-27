@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Mesas{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h2>Dashboard Mesero</h2>
+  <p>Flujo: abrir pedido por mesa, editarlo, enviar a cocina y esperar pedido listo.</p>
+  <p id="ready-alert" class="msg success" style="display:none;"></p>
+</section>
+
+<section class="grid">
+  <article class="card">
+    <h3>Mesas</h3>
+    <table>
+      <tr><th>Mesa</th><th>Estado</th><th>Acción</th></tr>
+      {% for m in mesas %}
+      <tr>
+        <td>{{ m.numero }}</td>
+        <td>{{ m.estado }}</td>
+        <td>
+          {% if m.estado == 'OCUPADA' %}
+          <form method="post" action="{{ url_for('update_mesa_estado') }}" class="inline-form">
+            <input type="hidden" name="mesa_id" value="{{ m.id }}" />
+            <input type="hidden" name="estado" value="LIBRE" />
+            <button type="submit">Marcar libre</button>
+          </form>
+          {% else %}
+          Libre
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Nueva atención por mesa</h3>
+    <form method="post" action="{{ url_for('create_pedido') }}">
+      <select name="mesa_id" required>
+        <option value="">Mesa libre</option>
+        {% for m in mesas_libres %}
+        <option value="{{ m.id }}">Mesa {{ m.numero }}</option>
+        {% endfor %}
+      </select>
+      <input type="hidden" name="user_id" value="{{ session.get('user_id') }}" />
+      <button type="submit">Abrir pedido</button>
+    </form>
+    <h4>Platillos disponibles</h4>
+    <table>
+      <tr><th>Platillo</th><th>Precio</th></tr>
+      {% for p in platillos %}
+      <tr><td>{{ p.nombre }}</td><td>{{ p.precio }}</td></tr>
+      {% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Editar pedido ABIERTO</h3>
+    <form method="post" action="{{ url_for('add_item_pedido') }}">
+      <select name="pedido_id" required>
+        <option value="">Pedido ABIERTO</option>
+        {% for p in pedidos_abiertos %}
+        <option value="{{ p.id }}">Pedido #{{ p.id }} (Mesa {{ p.mesa_id }})</option>
+        {% endfor %}
+      </select>
+      <select name="platillo_id" required>
+        <option value="">Platillo</option>
+        {% for p in platillos %}
+        <option value="{{ p.id }}">{{ p.nombre }} - {{ p.precio }}</option>
+        {% endfor %}
+      </select>
+      <input name="cantidad" type="number" step="0.01" placeholder="Cantidad" required />
+      <button type="submit">Agregar item</button>
+    </form>
+    <table>
+      <tr><th>Pedido</th><th>Mesa</th><th>Items</th><th>Total</th><th>Acciones</th></tr>
+      {% for p in pedidos_abiertos %}
+      <tr>
+        <td>#{{ p.id }}</td>
+        <td>{{ p.mesa_id }}</td>
+        <td>
+          {% for d in p.detalles %}
+          <form method="post" action="{{ url_for('update_item_pedido') }}" class="inline-form">
+            <input type="hidden" name="pedido_id" value="{{ p.id }}" />
+            <input type="hidden" name="detalle_id" value="{{ d.id }}" />
+            <span>Platillo {{ d.platillo_id }}</span>
+            <input name="cantidad" type="number" step="0.01" min="0.01" value="{{ d.cantidad }}" required />
+            <button type="submit">Actualizar</button>
+          </form>
+          <form method="post" action="{{ url_for('delete_item_pedido') }}" class="inline-form">
+            <input type="hidden" name="pedido_id" value="{{ p.id }}" />
+            <input type="hidden" name="detalle_id" value="{{ d.id }}" />
+            <button type="submit">Quitar</button>
+          </form>
+          {% else %}
+          Sin items
+          {% endfor %}
+        </td>
+        <td>{{ p.total }}</td>
+        <td style="display:grid;gap:0.35rem;">
+          <form method="post" action="{{ url_for('update_pedido_estado') }}" class="inline-form">
+            <input type="hidden" name="pedido_id" value="{{ p.id }}" />
+            <input type="hidden" name="estado" value="PREPARACION" />
+            <button type="submit">Enviar a cocina</button>
+          </form>
+          <form method="post" action="{{ url_for('update_pedido_estado') }}" class="inline-form">
+            <input type="hidden" name="pedido_id" value="{{ p.id }}" />
+            <input type="hidden" name="estado" value="CANCELADO" />
+            <button type="submit">Cancelar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Pedidos en cocina</h3>
+    <table>
+      <tr><th>Pedido</th><th>Mesa</th><th>Estado</th><th>Total</th></tr>
+      {% for p in pedidos_preparacion %}
+      <tr><td>#{{ p.id }}</td><td>{{ p.mesa_id }}</td><td>{{ p.estado }}</td><td>{{ p.total }}</td></tr>
+      {% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>Listos para servir (desde cocina)</h3>
+    <table>
+      <tr><th>Pedido</th><th>Mesa</th><th>Estado</th><th>Total</th></tr>
+      {% for p in pedidos_servidos %}
+      <tr><td>#{{ p.id }}</td><td>{{ p.mesa_id }}</td><td>{{ p.estado }}</td><td>{{ p.total }}</td></tr>
+      {% endfor %}
+    </table>
+  </article>
+</section>
+
+<script>
+  (function () {
+    let knownServed = new Set({{ pedidos_servidos_ids | tojson }});
+    const alertBox = document.getElementById("ready-alert");
+
+    function beep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 880;
+        gain.gain.value = 0.08;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        setTimeout(() => {
+          osc.stop();
+          ctx.close();
+        }, 180);
+      } catch (e) {}
+    }
+
+    async function pollStatus() {
+      try {
+        const resp = await fetch("{{ url_for('mesero_pedidos_status') }}", { cache: "no-store" });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const currentServed = new Set(data.servidos || []);
+        const newlyReady = [...currentServed].filter((id) => !knownServed.has(id));
+        if (newlyReady.length > 0) {
+          beep();
+          alertBox.style.display = "block";
+          alertBox.textContent = "Hay " + newlyReady.length + " pedido(s) listo(s) en cocina. Actualizando vista...";
+          setTimeout(() => window.location.reload(), 1200);
+        }
+        knownServed = currentServed;
+      } catch (e) {}
+    }
+
+    setInterval(pollStatus, 10000);
+  })();
+</script>
+{% endblock %}

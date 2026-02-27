@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Garrobito | Operación{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h2>Conexión</h2>
+  <p><strong>Backend API URL:</strong> {{ backend_api_url }}</p>
+  <p><strong>Caja abierta:</strong> {{ 'Sí' if caja_estado.abierta else 'No' }}</p>
+  {% if caja_estado.apertura %}
+  <p><strong>Apertura actual:</strong> ID {{ caja_estado.apertura.id }} | Usuario {{ caja_estado.apertura.user_id }}</p>
+  {% endif %}
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <section class="card">
+      <h2>Mensajes</h2>
+      {% for category, message in messages %}
+        <p class="msg {{ category }}">{{ message }}</p>
+      {% endfor %}
+    </section>
+  {% endif %}
+{% endwith %}
+
+<section class="grid">
+  <article class="card">
+    <h2>Usuarios</h2>
+    <form method="post" action="{{ url_for('register_user') }}">
+      <input name="username" placeholder="username" required />
+      <input name="password" type="password" placeholder="password" required />
+      <select name="role">
+        <option>ADMIN</option><option>CAJERO</option><option>MESERO</option><option>COCINA</option>
+      </select>
+      <button type="submit">Crear usuario</button>
+    </form>
+    <table>
+      <tr><th>ID</th><th>User</th><th>Rol</th></tr>
+      {% for u in users %}<tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td>{{ u.role }}</td></tr>{% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h2>Mesas</h2>
+    <form method="post" action="{{ url_for('create_mesa') }}">
+      <input name="numero" type="number" min="1" placeholder="Número" required />
+      <select name="estado"><option>LIBRE</option><option>OCUPADA</option></select>
+      <button type="submit">Crear mesa</button>
+    </form>
+    <table>
+      <tr><th>ID</th><th>Número</th><th>Estado</th></tr>
+      {% for m in mesas %}<tr><td>{{ m.id }}</td><td>{{ m.numero }}</td><td>{{ m.estado }}</td></tr>{% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h2>Productos</h2>
+    <form method="post" action="{{ url_for('create_producto') }}">
+      <input name="nombre" placeholder="Nombre" required />
+      <input name="unidad" placeholder="Unidad" required />
+      <input name="stock_actual" type="number" step="0.01" placeholder="Stock inicial" />
+      <input name="costo_promedio" type="number" step="0.01" placeholder="Costo" />
+      <button type="submit">Crear producto</button>
+    </form>
+    <table>
+      <tr><th>ID</th><th>Nombre</th><th>Stock</th><th>Costo</th></tr>
+      {% for p in productos %}<tr><td>{{ p.id }}</td><td>{{ p.nombre }}</td><td>{{ p.stock_actual }}</td><td>{{ p.costo_promedio }}</td></tr>{% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h2>Platillos</h2>
+    <form method="post" action="{{ url_for('create_platillo') }}">
+      <input name="nombre" placeholder="Nombre" required />
+      <input name="precio" type="number" step="0.01" placeholder="Precio" required />
+      <button type="submit">Crear platillo</button>
+    </form>
+
+    <form method="post" action="{{ url_for('add_ingrediente') }}">
+      <input name="platillo_id" type="number" placeholder="Platillo ID" required />
+      <input name="producto_id" type="number" placeholder="Producto ID" required />
+      <input name="cantidad_por_unidad" type="number" step="0.01" placeholder="Cant por unidad" required />
+      <button type="submit">Asignar ingrediente</button>
+    </form>
+
+    <table>
+      <tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Receta</th></tr>
+      {% for p in platillos %}
+      <tr>
+        <td>{{ p.id }}</td>
+        <td>{{ p.nombre }}</td>
+        <td>{{ p.precio }}</td>
+        <td>
+          {% for i in p.ingredientes %}
+            [Prod {{ i.producto_id }} x {{ i.cantidad_por_unidad }}]
+          {% endfor %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h2>Pedidos</h2>
+    <form method="post" action="{{ url_for('create_pedido') }}">
+      <input name="mesa_id" type="number" placeholder="Mesa ID" required />
+      <input name="user_id" type="number" placeholder="User ID" required />
+      <button type="submit">Crear pedido</button>
+    </form>
+
+    <form method="post" action="{{ url_for('add_item_pedido') }}">
+      <input name="pedido_id" type="number" placeholder="Pedido ID" required />
+      <input name="platillo_id" type="number" placeholder="Platillo ID" required />
+      <input name="cantidad" type="number" step="0.01" placeholder="Cantidad" required />
+      <button type="submit">Agregar item</button>
+    </form>
+
+    <table>
+      <tr><th>ID</th><th>Mesa</th><th>User</th><th>Estado</th><th>Total</th></tr>
+      {% for p in pedidos %}<tr><td>{{ p.id }}</td><td>{{ p.mesa_id }}</td><td>{{ p.user_id }}</td><td>{{ p.estado }}</td><td>{{ p.total }}</td></tr>{% endfor %}
+    </table>
+  </article>
+
+  <article class="card">
+    <h2>Caja</h2>
+    <form method="post" action="{{ url_for('apertura_caja') }}">
+      <input name="user_id" type="number" placeholder="User ID cajero" required />
+      <input name="monto_inicial" type="number" step="0.01" placeholder="Monto inicial" required />
+      <button type="submit">Abrir caja</button>
+    </form>
+
+    <form method="post" action="{{ url_for('cobro_caja') }}">
+      <input name="pedido_id" type="number" placeholder="Pedido ID" required />
+      <select name="metodo"><option>EFECTIVO</option><option>TARJETA</option><option>TRANSFERENCIA</option></select>
+      <button type="submit">Cobrar pedido</button>
+    </form>
+
+    <form method="post" action="{{ url_for('cierre_caja') }}">
+      <input name="apertura_caja_id" type="number" placeholder="Apertura ID" required />
+      <button type="submit">Cerrar caja</button>
+    </form>
+  </article>
+</section>
+{% endblock %}
