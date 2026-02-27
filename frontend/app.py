@@ -15,11 +15,13 @@ ROLE_DASHBOARD = {
 }
 
 
-def _api_call(base_url, method, path, payload=None, token=None, params=None):
+def _api_call(base_url, method, path, payload=None, token=None, params=None, extra_headers=None):
     url = f"{base_url.rstrip('/')}{path}"
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    if extra_headers:
+        headers.update(extra_headers)
 
     response = requests.request(method=method, url=url, json=payload, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
 
@@ -119,6 +121,7 @@ def create_frontend_app():
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.config["BACKEND_API_URL"] = os.getenv("BACKEND_API_URL", "http://127.0.0.1:5000")
     app.config["SECRET_KEY"] = os.getenv("FRONTEND_SECRET_KEY", "frontend-dev-secret")
+    app.config["BACKEND_DEPLOY_KEY"] = os.getenv("BACKEND_DEPLOY_KEY", "")
 
     def auth_token():
         return session.get("access_token")
@@ -167,6 +170,46 @@ def create_frontend_app():
         except Exception as exc:
             flash(f"Login inválido: {exc}", "error")
             return redirect(url_for("login"))
+
+    @app.route("/onboarding", methods=["GET", "POST"])
+    def onboarding():
+        if request.method == "GET":
+            return render_template("onboarding.html")
+
+        client_name = request.form.get("client_name", "").strip()
+        slug = request.form.get("slug", "").strip().lower()
+        admin_password = request.form.get("admin_password", "").strip()
+
+        if not client_name or not slug or not admin_password:
+            flash("Nombre del cliente, slug y password admin son requeridos", "error")
+            return redirect(url_for("onboarding"))
+
+        payload = {
+            "client_name": client_name,
+            "slug": slug,
+            "admin_username": "admin",
+            "admin_password": admin_password,
+        }
+        headers = {}
+        if app.config["BACKEND_DEPLOY_KEY"]:
+            headers["X-Deploy-Key"] = app.config["BACKEND_DEPLOY_KEY"]
+
+        try:
+            result = _api_call(
+                app.config["BACKEND_API_URL"],
+                "POST",
+                "/deployments/tenant",
+                payload=payload,
+                extra_headers=headers,
+            )
+            queue_item_url = result.get("queue_item_url", "")
+            if queue_item_url:
+                flash(f"Solicitud enviada. Cola Jenkins: {queue_item_url}", "success")
+            else:
+                flash("Solicitud enviada. Jenkins aceptó el despliegue.", "success")
+        except Exception as exc:
+            flash(f"No se pudo solicitar el despliegue: {exc}", "error")
+        return redirect(url_for("onboarding"))
 
     @app.get("/logout")
     def logout():

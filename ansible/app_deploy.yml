@@ -21,6 +21,12 @@
 
     admin_username: admin
     admin_password: ""
+    deploy_api_key: ""
+    jenkins_url: ""
+    jenkins_user: ""
+    jenkins_api_token: ""
+    jenkins_job_name: garrobito-deploy
+    jenkins_verify_ssl: "true"
 
   pre_tasks:
     - name: Validate required variables
@@ -85,6 +91,12 @@
           SECRET_KEY: "{{ backend_secret_key }}"
           JWT_SECRET_KEY: "{{ jwt_secret_key }}"
           DATABASE_URL: "mysql+pymysql://{{ tenant_db_user }}:{{ tenant_db_password }}@{{ db_container_name }}:3306/{{ tenant_db_name }}"
+          DEPLOY_API_KEY: "{{ deploy_api_key }}"
+          JENKINS_URL: "{{ jenkins_url }}"
+          JENKINS_USER: "{{ jenkins_user }}"
+          JENKINS_API_TOKEN: "{{ jenkins_api_token }}"
+          JENKINS_JOB_NAME: "{{ jenkins_job_name }}"
+          JENKINS_VERIFY_SSL: "{{ jenkins_verify_ssl }}"
 
     - name: Run backend migrations
       community.docker.docker_container_exec:
@@ -116,6 +128,7 @@
         env:
           BACKEND_API_URL: "http://{{ api_container_name }}:5000"
           FRONTEND_SECRET_KEY: "{{ frontend_secret_key }}"
+          BACKEND_DEPLOY_KEY: "{{ deploy_api_key }}"
 
     - name: Wait for frontend health endpoint
       ansible.builtin.uri:

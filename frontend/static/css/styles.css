@@ -187,6 +187,26 @@ button {
   border: none;
 }
 
+.onboarding-link {
+  display: inline-block;
+  margin-top: 0.6rem;
+  color: var(--olive);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.onboarding-link:hover {
+  text-decoration: underline;
+}
+
+.onboarding-card {
+  max-width: 520px;
+  width: 100%;
+  border: 1px solid #d7cbb7;
+  box-shadow: 0 12px 28px rgba(55, 42, 21, 0.1);
+  padding: 1.2rem;
+}
+
 .login-api {
   margin-top: 0.8rem;
   font-size: 0.85rem;

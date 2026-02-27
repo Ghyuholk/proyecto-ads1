@@ -22,6 +22,7 @@ def create_app(config_class=Config):
     from app.routes.inventario_fisico import inventario_fisico_bp
     from app.routes.caja import caja_bp
     from app.routes.protected_examples import protected_bp
+    from app.routes.deployments import deployments_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(mesas_bp)
@@ -32,6 +33,7 @@ def create_app(config_class=Config):
     app.register_blueprint(inventario_fisico_bp)
     app.register_blueprint(caja_bp)
     app.register_blueprint(protected_bp)
+    app.register_blueprint(deployments_bp)
 
     with app.app_context():
         from app import models  # noqa: F401

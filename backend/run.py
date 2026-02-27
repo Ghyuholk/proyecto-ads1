@@ -1,7 +1,12 @@
 import os
 
+from dotenv import load_dotenv
+
 from app import create_app
 
+
+# Load local backend/.env automatically for local runs.
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 app = create_app()
 

@@ -185,3 +185,29 @@ Se agregaron:
 ```bash
 ansible-galaxy collection install -r ansible/requirements.yml
 ```
+
+## Solicitud de despliegue desde la web
+
+Se agregó una pantalla para ventas/onboarding:
+
+- Frontend: `GET/POST /onboarding`
+- Backend API: `POST /deployments/tenant`
+
+Flujo:
+
+1. Completar formulario de cliente (`client_name`, `slug`, datos de contacto y admin).
+2. Frontend envía la solicitud al backend.
+3. Backend dispara Jenkins (`buildWithParameters`) para ejecutar el pipeline de despliegue.
+
+Variables nuevas (backend):
+
+- `DEPLOY_API_KEY`
+- `JENKINS_URL`
+- `JENKINS_USER`
+- `JENKINS_API_TOKEN`
+- `JENKINS_JOB_NAME`
+- `JENKINS_VERIFY_SSL`
+
+Variable nueva (frontend):
+
+- `BACKEND_DEPLOY_KEY` (debe coincidir con `DEPLOY_API_KEY` del backend)

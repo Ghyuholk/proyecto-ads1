@@ -5,6 +5,9 @@ pipeline {
     string(name: 'CLIENT_NAME', defaultValue: 'Cliente Demo', description: 'Nombre comercial del cliente')
     string(name: 'SLUG', defaultValue: 'cliente-demo', description: 'Slug único del tenant')
     string(name: 'ADMIN_USERNAME', defaultValue: 'admin', description: 'Usuario ADMIN inicial')
+    password(name: 'ADMIN_PASSWORD', defaultValue: '', description: 'Password ADMIN inicial (si se deja vacío usa credencial Jenkins)')
+    string(name: 'CONTACT_EMAIL', defaultValue: '', description: 'Correo de contacto comercial')
+    string(name: 'CONTACT_PHONE', defaultValue: '', description: 'Teléfono de contacto comercial')
   }
 
   environment {
@@ -53,8 +56,11 @@ pipeline {
       steps {
         withCredentials([
           string(credentialsId: 'mariadb-root-password', variable: 'MARIADB_ROOT_PASSWORD'),
-          string(credentialsId: 'tenant-admin-password', variable: 'ADMIN_PASSWORD')
+          string(credentialsId: 'tenant-admin-password', variable: 'DEFAULT_ADMIN_PASSWORD')
         ]) {
+          script {
+            env.DEPLOY_ADMIN_PASSWORD = params.ADMIN_PASSWORD?.trim() ? params.ADMIN_PASSWORD : env.DEFAULT_ADMIN_PASSWORD
+          }
           sh '''
             ansible-playbook -i ansible/inventory.ini ansible/app_deploy.yml \
               -e app_name=${APP_NAME} \
@@ -64,7 +70,7 @@ pipeline {
               -e backend_image=${BACKEND_IMAGE} \
               -e frontend_image=${FRONTEND_IMAGE} \
               -e admin_username=${ADMIN_USERNAME} \
-              -e admin_password=${ADMIN_PASSWORD} \
+              -e admin_password=${DEPLOY_ADMIN_PASSWORD} \
               -e db_root_password=${MARIADB_ROOT_PASSWORD}
           '''
         }
