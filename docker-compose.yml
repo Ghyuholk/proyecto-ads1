@@ -16,6 +16,45 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+  
+  garrobito_backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: garrobito_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: mysql+pymysql://root:${MARIADB_ROOT_PASSWORD}@garrobito_db:3306/${MARIADB_BOOTSTRAP_DB:-garrobito_bootstrap}
+      HOST: 0.0.0.0
+      PORT: "5000"
+    depends_on:
+      garrobito_db:
+        condition: service_healthy
+    networks:
+      - garrobito_net
+    ports:
+      - "5000:5000"
+
+  garrobito_frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: garrobito_frontend
+    restart: unless-stopped
+    env_file:
+      - ./frontend/.env
+    environment:
+      BACKEND_API_URL: http://garrobito_backend:5000
+      HOST: 0.0.0.0
+    depends_on:
+      garrobito_backend:
+        condition: service_started
+    networks:
+      - garrobito_net
+    ports:
+      - "5001:80"
 
 volumes:
   garrobito_db_data:
