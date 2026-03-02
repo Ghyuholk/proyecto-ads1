@@ -55,14 +55,12 @@ pipeline {
           string(credentialsId: 'mariadb-root-password', variable: 'MARIADB_ROOT_PASSWORD'),
           string(credentialsId: 'tenant-admin-password', variable: 'DEFAULT_ADMIN_PASSWORD')
         ]) {
-          script {
-            def adminPasswordParam = ''
-            if (params.ADMIN_PASSWORD) {
-              adminPasswordParam = params.ADMIN_PASSWORD.getPlainText().trim()
-            }
-            env.DEPLOY_ADMIN_PASSWORD = adminPasswordParam ? adminPasswordParam : env.DEFAULT_ADMIN_PASSWORD
-          }
           sh '''
+            ADMIN_PASS="${ADMIN_PASSWORD}"
+            if [ -z "${ADMIN_PASS}" ]; then
+              ADMIN_PASS="${DEFAULT_ADMIN_PASSWORD}"
+            fi
+
             ansible-playbook -i ansible/inventory.ini ansible/app_deploy.yml \
               --private-key "${EC2_SSH_KEY}" \
               -e app_name=${APP_NAME} \
@@ -76,7 +74,7 @@ pipeline {
               -e backend_image=${BACKEND_IMAGE} \
               -e frontend_image=${FRONTEND_IMAGE} \
               -e admin_username=${ADMIN_USERNAME} \
-              -e admin_password=${DEPLOY_ADMIN_PASSWORD} \
+              -e admin_password="${ADMIN_PASS}" \
               -e db_root_password=${MARIADB_ROOT_PASSWORD}
           '''
         }
