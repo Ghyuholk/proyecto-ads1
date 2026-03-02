@@ -4,6 +4,14 @@
 
 {% block content %}
 <section class="login-wrap">
+  {% if deploy_tracking %}
+  <article class="card" id="deploy-status-card" data-queue-url="{{ deploy_tracking.queue_item_url }}">
+    <h3>Estado del Despliegue</h3>
+    <p id="deploy-status-text" class="msg success">Tu solicitud ha sido enviada. Espera un momento...</p>
+    <p id="deploy-status-meta">Cliente: {{ deploy_tracking.slug }}</p>
+  </article>
+  {% endif %}
+
   <article class="card onboarding-card">
     <h2>Solicitud de Despliegue</h2>
     <p class="login-subtitle">Completa los datos del comprador para crear su cliente</p>
@@ -16,4 +24,63 @@
     <a class="onboarding-link" href="{{ url_for('login') }}">Volver al inicio de sesion</a>
   </article>
 </section>
+
+{% if deploy_tracking %}
+<script>
+  (function () {
+    const card = document.getElementById("deploy-status-card");
+    if (!card) return;
+
+    const queueItemUrl = card.dataset.queueUrl;
+    const statusText = document.getElementById("deploy-status-text");
+    const statusMeta = document.getElementById("deploy-status-meta");
+    let retries = 0;
+    const maxRetries = 60;
+
+    async function pollStatus() {
+      if (retries >= maxRetries) {
+        statusText.className = "msg error";
+        statusText.textContent = "No se pudo confirmar el despliegue en el tiempo esperado. Revisa Jenkins.";
+        return;
+      }
+      retries += 1;
+
+      try {
+        const response = await fetch(
+          "{{ url_for('onboarding_deploy_status') }}?queue_item_url=" + encodeURIComponent(queueItemUrl),
+          { cache: "no-store" }
+        );
+        const data = await response.json();
+        const state = data.state || "running";
+
+        if (state === "success") {
+          statusText.className = "msg success";
+          statusText.textContent = "Despliegue exitoso.";
+          if (data.build_url) {
+            statusMeta.innerHTML = 'Build: <a href="' + data.build_url + '" target="_blank" rel="noopener">' + data.build_url + "</a>";
+          }
+          return;
+        }
+
+        if (state === "failed" || state === "error") {
+          statusText.className = "msg error";
+          statusText.textContent = data.message || "El despliegue falló.";
+          if (data.build_url) {
+            statusMeta.innerHTML = 'Build: <a href="' + data.build_url + '" target="_blank" rel="noopener">' + data.build_url + "</a>";
+          }
+          return;
+        }
+
+        statusText.className = "msg success";
+        statusText.textContent = data.message || "Despliegue en progreso...";
+        setTimeout(pollStatus, 5000);
+      } catch (error) {
+        setTimeout(pollStatus, 5000);
+      }
+    }
+
+    setTimeout(pollStatus, 2000);
+  })();
+</script>
+{% endif %}
 {% endblock %}

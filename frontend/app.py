@@ -174,7 +174,7 @@ def create_frontend_app():
     @app.route("/onboarding", methods=["GET", "POST"])
     def onboarding():
         if request.method == "GET":
-            return render_template("onboarding.html")
+            return render_template("onboarding.html", deploy_tracking=None)
 
         client_name = request.form.get("client_name", "").strip()
         slug = request.form.get("slug", "").strip().lower()
@@ -204,12 +204,38 @@ def create_frontend_app():
             )
             queue_item_url = result.get("queue_item_url", "")
             if queue_item_url:
-                flash(f"Solicitud enviada. Cola Jenkins: {queue_item_url}", "success")
+                deploy_tracking = {
+                    "queue_item_url": queue_item_url,
+                    "slug": slug,
+                }
+                return render_template("onboarding.html", deploy_tracking=deploy_tracking)
             else:
                 flash("Solicitud enviada. Jenkins aceptó el despliegue.", "success")
         except Exception as exc:
             flash(f"No se pudo solicitar el despliegue: {exc}", "error")
         return redirect(url_for("onboarding"))
+
+    @app.get("/onboarding/deploy-status")
+    def onboarding_deploy_status():
+        queue_item_url = (request.args.get("queue_item_url") or "").strip()
+        if not queue_item_url:
+            return jsonify({"state": "error", "message": "queue_item_url es requerido"}), 400
+
+        headers = {}
+        if app.config["BACKEND_DEPLOY_KEY"]:
+            headers["X-Deploy-Key"] = app.config["BACKEND_DEPLOY_KEY"]
+
+        try:
+            status = _api_call(
+                app.config["BACKEND_API_URL"],
+                "GET",
+                "/deployments/tenant/status",
+                params={"queue_item_url": queue_item_url},
+                extra_headers=headers,
+            )
+            return jsonify(status), 200
+        except Exception as exc:
+            return jsonify({"state": "error", "message": f"No se pudo consultar estado: {exc}"}), 502
 
     @app.get("/logout")
     def logout():

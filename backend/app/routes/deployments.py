@@ -72,6 +72,15 @@ def _jenkins_get_crumb(cfg):
     return {}
 
 
+def _to_api_json_url(url):
+    normalized = (url or "").strip().rstrip("/")
+    if not normalized:
+        return ""
+    if normalized.endswith("/api/json"):
+        return normalized
+    return f"{normalized}/api/json"
+
+
 @deployments_bp.post("/tenant")
 def trigger_tenant_deployment():
     authorized, key_required = _require_deploy_key(request)
@@ -126,3 +135,104 @@ def trigger_tenant_deployment():
             "slug": payload["slug"],
         }
     ), 202
+
+
+@deployments_bp.get("/tenant/status")
+def get_tenant_deployment_status():
+    authorized, key_required = _require_deploy_key(request)
+    if not authorized:
+        if key_required:
+            return error_response("No autorizado: X-Deploy-Key inválido o ausente", 403)
+        return error_response("No autorizado", 403)
+
+    cfg = _jenkins_base_config()
+    if not cfg["url"] or not cfg["user"] or not cfg["token"] or not cfg["job"]:
+        return error_response("Configuración Jenkins incompleta en backend", 500)
+
+    queue_item_url = (request.args.get("queue_item_url") or "").strip()
+    if not queue_item_url:
+        return error_response("queue_item_url es requerido", 400)
+
+    queue_api_url = _to_api_json_url(queue_item_url)
+    try:
+        queue_response = requests.get(
+            queue_api_url,
+            auth=(cfg["user"], cfg["token"]),
+            timeout=8,
+            verify=cfg["verify_ssl"],
+        )
+    except requests.RequestException as exc:
+        return error_response(f"Error consultando estado en Jenkins: {exc}", 502)
+
+    if queue_response.status_code >= 400:
+        return error_response(
+            f"Jenkins devolvió {queue_response.status_code} consultando cola",
+            502,
+        )
+
+    queue_data = queue_response.json()
+    if queue_data.get("cancelled"):
+        return jsonify(
+            {
+                "state": "failed",
+                "message": "El despliegue fue cancelado en Jenkins",
+                "queue_item_url": queue_item_url,
+            }
+        )
+
+    executable = queue_data.get("executable") or {}
+    build_url = (executable.get("url") or "").strip()
+
+    if not build_url:
+        return jsonify(
+            {
+                "state": "queued",
+                "message": "Tu solicitud está en cola o en preparación",
+                "queue_item_url": queue_item_url,
+            }
+        )
+
+    build_api_url = _to_api_json_url(build_url)
+    try:
+        build_response = requests.get(
+            build_api_url,
+            auth=(cfg["user"], cfg["token"]),
+            timeout=8,
+            verify=cfg["verify_ssl"],
+        )
+    except requests.RequestException as exc:
+        return error_response(f"Error consultando build en Jenkins: {exc}", 502)
+
+    if build_response.status_code >= 400:
+        return error_response(
+            f"Jenkins devolvió {build_response.status_code} consultando build",
+            502,
+        )
+
+    build_data = build_response.json()
+    result = (build_data.get("result") or "").upper()
+    building = bool(build_data.get("building"))
+
+    if building:
+        state = "running"
+        message = "Despliegue en progreso"
+    elif result == "SUCCESS":
+        state = "success"
+        message = "Despliegue completado exitosamente"
+    elif result in {"FAILURE", "ABORTED", "UNSTABLE", "NOT_BUILT"}:
+        state = "failed"
+        message = f"Despliegue finalizó con estado {result}"
+    else:
+        state = "running"
+        message = "Jenkins aún está procesando el despliegue"
+
+    return jsonify(
+        {
+            "state": state,
+            "message": message,
+            "result": result,
+            "queue_item_url": queue_item_url,
+            "build_url": build_url,
+            "build_number": build_data.get("number"),
+        }
+    )
