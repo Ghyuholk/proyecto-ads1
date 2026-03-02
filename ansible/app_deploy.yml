@@ -159,19 +159,22 @@
           JENKINS_VERIFY_SSL: "{{ jenkins_verify_ssl }}"
 
     - name: Ejecutar migraciones del backend
-      community.docker.docker_container_exec:
-        container: "{{ api_container_name }}"
-        command: flask --app run.py db upgrade
-        chdir: /app
+      ansible.builtin.shell: docker exec {{ api_container_name }} flask --app run.py db upgrade
+      register: migracion_backend
+      retries: 6
+      delay: 10
+      until: migracion_backend.rc == 0
 
     - name: Sembrar o actualizar usuario administrador
-      community.docker.docker_container_exec:
-        container: "{{ api_container_name }}"
-        command: >-
-          sh -lc "ADMIN_USERNAME='{{ admin_username }}'
-          ADMIN_PASSWORD='{{ admin_password }}'
-          flask --app run.py seed-admin"
-        chdir: /app
+      ansible.builtin.shell: >-
+        docker exec {{ api_container_name }} sh -lc
+        "ADMIN_USERNAME='{{ admin_username }}'
+        ADMIN_PASSWORD='{{ admin_password }}'
+        flask --app run.py seed-admin"
+      register: seed_admin_backend
+      retries: 4
+      delay: 8
+      until: seed_admin_backend.rc == 0
 
     - name: Desplegar contenedor frontend
       community.docker.docker_container:
