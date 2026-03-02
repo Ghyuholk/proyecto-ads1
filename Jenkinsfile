@@ -56,7 +56,11 @@ pipeline {
           string(credentialsId: 'tenant-admin-password', variable: 'DEFAULT_ADMIN_PASSWORD')
         ]) {
           script {
-            env.DEPLOY_ADMIN_PASSWORD = params.ADMIN_PASSWORD?.trim() ? params.ADMIN_PASSWORD : env.DEFAULT_ADMIN_PASSWORD
+            def adminPasswordParam = ''
+            if (params.ADMIN_PASSWORD) {
+              adminPasswordParam = params.ADMIN_PASSWORD.getPlainText().trim()
+            }
+            env.DEPLOY_ADMIN_PASSWORD = adminPasswordParam ? adminPasswordParam : env.DEFAULT_ADMIN_PASSWORD
           }
           sh '''
             ansible-playbook -i ansible/inventory.ini ansible/app_deploy.yml \
