@@ -1,8 +1,10 @@
 import re
 
 import requests
+from sqlalchemy import text
 from flask import Blueprint, current_app, jsonify, request
 
+from app.extensions import db
 from app.routes.utils import error_response
 
 
@@ -49,6 +51,15 @@ def _validate_payload(data):
         "admin_username": admin_username,
         "admin_password": admin_password,
     }
+
+
+def _tenant_db_exists(slug):
+    tenant_db_name = f"db_{slug}"
+    query = text(
+        "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = :schema_name LIMIT 1"
+    )
+    result = db.session.execute(query, {"schema_name": tenant_db_name}).first()
+    return result is not None
 
 
 def _jenkins_get_crumb(cfg):
@@ -98,6 +109,12 @@ def trigger_tenant_deployment():
         payload = _validate_payload(data)
     except ValueError as exc:
         return error_response(str(exc), 400)
+
+    try:
+        if _tenant_db_exists(payload["slug"]):
+            return error_response("El identificador ya existe. Usa uno diferente.", 409)
+    except Exception as exc:
+        return error_response(f"No se pudo validar el identificador: {exc}", 500)
 
     build_url = f"{cfg['url']}/job/{cfg['job']}/buildWithParameters"
     params = {
