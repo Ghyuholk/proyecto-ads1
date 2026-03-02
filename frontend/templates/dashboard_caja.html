@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard Caja{% endblock %}
+{% block title %}Panel Caja{% endblock %}
 
 {% block content %}
 <section class="card">
-  <h2>Dashboard Caja</h2>
+  <h2>Panel Caja</h2>
   <p>Flujo simple: abrir caja -> cobrar pedidos SERVIDOS -> cerrar caja.</p>
   <p><strong>Caja abierta:</strong> {{ 'Sí' if caja_estado.abierta else 'No' }}</p>
   {% if caja_estado.apertura %}

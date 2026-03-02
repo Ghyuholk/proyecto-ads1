@@ -39,11 +39,11 @@ def register():
     role_raw = data.get("role", RoleEnum.MESERO.value)
 
     if not username or not password:
-        return error_response("username y password son requeridos")
+        return error_response("usuario y contrasena son requeridos")
     if db.session.query(User).filter(User.username == username).first():
-        return error_response("username ya existe")
+        return error_response("el usuario ya existe")
 
-    # Bootstrap: si no hay usuarios permite crear el primero sin token.
+    # Si no hay usuarios, permite crear el primero sin token.
     existing_users = db.session.query(User).count()
     if existing_users > 0:
         claims = get_jwt()
@@ -74,7 +74,7 @@ def login():
     password = data.get("password")
 
     if not username or not password:
-        return error_response("username y password son requeridos")
+        return error_response("usuario y contrasena son requeridos")
 
     user = db.session.query(User).filter(User.username == username, User.is_active.is_(True)).first()
     if not user or not check_password_hash(user.password_hash, password):

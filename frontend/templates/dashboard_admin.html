@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard ADMIN{% endblock %}
+{% block title %}Panel ADMIN{% endblock %}
 
 {% block content %}
 <section class="card">
-  <h2>Dashboard Admin</h2>
+  <h2>Panel Admin</h2>
   <p><strong>Caja abierta:</strong> {{ 'Sí' if caja_estado.abierta else 'No' }}</p>
 </section>
 
@@ -12,13 +12,13 @@
   <article class="card">
     <h3>Usuarios</h3>
     <form method="post" action="{{ url_for('register_user') }}">
-      <input name="username" placeholder="username" required />
-      <input name="password" type="password" placeholder="password" required />
+      <input name="username" placeholder="Usuario" required />
+      <input name="password" type="password" placeholder="Contrasena" required />
       <select name="role"><option>ADMIN</option><option>CAJERO</option><option>MESERO</option><option>COCINA</option></select>
       <button type="submit">Crear usuario</button>
     </form>
     <table>
-      <tr><th>ID</th><th>User</th><th>Rol</th></tr>
+      <tr><th>ID</th><th>Usuario</th><th>Rol</th></tr>
       {% for u in users %}<tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td>{{ u.role }}</td></tr>{% endfor %}
     </table>
   </article>

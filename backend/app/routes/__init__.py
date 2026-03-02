@@ -1,1 +1,1 @@
-# Blueprints package
+"""Paquete de rutas."""

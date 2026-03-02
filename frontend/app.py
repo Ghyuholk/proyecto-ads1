@@ -168,7 +168,7 @@ def create_frontend_app():
             flash(f"Bienvenido {user['username']}", "success")
             return redirect_to_role_dashboard()
         except Exception as exc:
-            flash(f"Login inválido: {exc}", "error")
+            flash(f"Inicio de sesion invalido: {exc}", "error")
             return redirect(url_for("login"))
 
     @app.route("/onboarding", methods=["GET", "POST"])
@@ -181,7 +181,7 @@ def create_frontend_app():
         admin_password = request.form.get("admin_password", "").strip()
 
         if not client_name or not slug or not admin_password:
-            flash("Nombre del cliente, slug y password admin son requeridos", "error")
+            flash("Nombre del cliente, identificador y contrasena de administrador son requeridos", "error")
             return redirect(url_for("onboarding"))
 
         payload = {

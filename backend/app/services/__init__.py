@@ -1,1 +1,1 @@
-# Services package
+"""Paquete de servicios."""

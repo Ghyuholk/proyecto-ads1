@@ -27,15 +27,15 @@
   <article class="card">
     <h2>Usuarios</h2>
     <form method="post" action="{{ url_for('register_user') }}">
-      <input name="username" placeholder="username" required />
-      <input name="password" type="password" placeholder="password" required />
+      <input name="username" placeholder="Usuario" required />
+      <input name="password" type="password" placeholder="Contrasena" required />
       <select name="role">
         <option>ADMIN</option><option>CAJERO</option><option>MESERO</option><option>COCINA</option>
       </select>
       <button type="submit">Crear usuario</button>
     </form>
     <table>
-      <tr><th>ID</th><th>User</th><th>Rol</th></tr>
+      <tr><th>ID</th><th>Usuario</th><th>Rol</th></tr>
       {% for u in users %}<tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td>{{ u.role }}</td></tr>{% endfor %}
     </table>
   </article>
@@ -103,8 +103,8 @@
   <article class="card">
     <h2>Pedidos</h2>
     <form method="post" action="{{ url_for('create_pedido') }}">
-      <input name="mesa_id" type="number" placeholder="Mesa ID" required />
-      <input name="user_id" type="number" placeholder="User ID" required />
+      <input name="mesa_id" type="number" placeholder="ID de mesa" required />
+      <input name="user_id" type="number" placeholder="ID de usuario" required />
       <button type="submit">Crear pedido</button>
     </form>
 
@@ -116,7 +116,7 @@
     </form>
 
     <table>
-      <tr><th>ID</th><th>Mesa</th><th>User</th><th>Estado</th><th>Total</th></tr>
+      <tr><th>ID</th><th>Mesa</th><th>Usuario</th><th>Estado</th><th>Total</th></tr>
       {% for p in pedidos %}<tr><td>{{ p.id }}</td><td>{{ p.mesa_id }}</td><td>{{ p.user_id }}</td><td>{{ p.estado }}</td><td>{{ p.total }}</td></tr>{% endfor %}
     </table>
   </article>
@@ -124,7 +124,7 @@
   <article class="card">
     <h2>Caja</h2>
     <form method="post" action="{{ url_for('apertura_caja') }}">
-      <input name="user_id" type="number" placeholder="User ID cajero" required />
+      <input name="user_id" type="number" placeholder="ID de usuario cajero" required />
       <input name="monto_inicial" type="number" step="0.01" placeholder="Monto inicial" required />
       <button type="submit">Abrir caja</button>
     </form>

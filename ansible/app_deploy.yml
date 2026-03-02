@@ -1,10 +1,16 @@
 ---
-- name: Deploy multi-tenant Garrobito
+- name: Desplegar Garrobito multiinquilino
   hosts: app_hosts
   gather_facts: false
+  become: true
 
   vars:
     app_name: garrobito
+    build_number: "manual"
+    package_path: "codigo.tar.gz"
+    releases_root: /opt/garrobito/releases
+    release_dir: "{{ releases_root }}/{{ build_number }}"
+
     docker_network: garrobito_net
     db_container_name: garrobito_db
     db_root_user: root
@@ -14,10 +20,10 @@
 
     client_name: Cliente
     slug: cliente
-    app_port: 8002
+    app_port: ""
 
-    backend_image: ""
-    frontend_image: ""
+    backend_image: "garrobito-backend:{{ build_number }}"
+    frontend_image: "garrobito-frontend:{{ build_number }}"
 
     admin_username: admin
     admin_password: ""
@@ -29,27 +35,45 @@
     jenkins_verify_ssl: "true"
 
   pre_tasks:
-    - name: Validate required variables
+    - name: Validar variables requeridas
       ansible.builtin.assert:
         that:
           - db_root_password | length > 0
           - backend_image | length > 0
           - frontend_image | length > 0
           - admin_password | length > 0
-        fail_msg: Missing required variables. Check Jenkins credentials and image tags.
+        fail_msg: Faltan variables requeridas. Revisa credenciales de Jenkins y etiquetas de imagen.
 
-    - name: Normalize tenant slug
+    - name: Normalizar identificador del cliente
       ansible.builtin.set_fact:
         tenant_slug: "{{ slug | lower | regex_replace('[^a-z0-9]+', '_') | regex_replace('(^_+|_+$)', '') }}"
 
-    - name: Build tenant identifiers
+    - name: Construir identificadores del cliente
       ansible.builtin.set_fact:
         tenant_db_name: "{{ db_name_prefix }}{{ tenant_slug }}"
         tenant_db_user: "{{ (db_user_prefix ~ tenant_slug)[:16] }}"
         api_container_name: "{{ app_name }}_api_{{ tenant_slug }}"
         web_container_name: "{{ app_name }}_web_{{ tenant_slug }}"
 
-    - name: Generate tenant secrets
+    - name: Seleccionar puerto libre si no se especifica
+      ansible.builtin.shell: |
+        for p in $(seq 8002 8999); do
+          if ! ss -ltn | awk '{print $4}' | grep -q ":$p$"; then
+            echo "$p"
+            exit 0
+          fi
+        done
+        exit 1
+      args:
+        executable: /bin/bash
+      register: puerto_libre
+      when: app_port | string | length == 0
+
+    - name: Definir puerto final
+      ansible.builtin.set_fact:
+        app_port: "{{ app_port if (app_port | string | length > 0) else (puerto_libre.stdout | trim) }}"
+
+    - name: Generar secretos del cliente
       ansible.builtin.set_fact:
         tenant_db_password: "{{ lookup('ansible.builtin.password', '/tmp/' ~ app_name ~ '_' ~ tenant_slug ~ '_db_password length=30 chars=ascii_letters,digits') }}"
         backend_secret_key: "{{ lookup('ansible.builtin.password', '/tmp/' ~ app_name ~ '_' ~ tenant_slug ~ '_backend_secret length=50 chars=ascii_letters,digits') }}"
@@ -57,12 +81,48 @@
         frontend_secret_key: "{{ lookup('ansible.builtin.password', '/tmp/' ~ app_name ~ '_' ~ tenant_slug ~ '_frontend_secret length=50 chars=ascii_letters,digits') }}"
 
   tasks:
-    - name: Ensure shared docker network exists
+    - name: Crear directorio de releases
+      ansible.builtin.file:
+        path: "{{ releases_root }}"
+        state: directory
+        mode: "0755"
+
+    - name: Crear directorio de release actual
+      ansible.builtin.file:
+        path: "{{ release_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Subir y descomprimir codigo en EC2
+      ansible.builtin.unarchive:
+        src: "{{ package_path }}"
+        dest: "{{ release_dir }}"
+        mode: "0755"
+
+    - name: Asegurar que exista la red compartida de Docker
       community.docker.docker_network:
         name: "{{ docker_network }}"
         state: present
 
-    - name: Ensure tenant database and user exist
+    - name: Construir imagen backend en EC2
+      community.docker.docker_image:
+        name: "{{ backend_image }}"
+        source: build
+        build:
+          path: "{{ release_dir }}/backend"
+          dockerfile: Dockerfile
+        force_source: true
+
+    - name: Construir imagen frontend en EC2
+      community.docker.docker_image:
+        name: "{{ frontend_image }}"
+        source: build
+        build:
+          path: "{{ release_dir }}/frontend"
+          dockerfile: Dockerfile
+        force_source: true
+
+    - name: Asegurar que existan la base de datos y el usuario del cliente
       community.docker.docker_container_exec:
         container: "{{ db_container_name }}"
         command: >-
@@ -73,7 +133,7 @@
           GRANT ALL PRIVILEGES ON {{ tenant_db_name }}.* TO '{{ tenant_db_user }}'@'%';
           FLUSH PRIVILEGES;"
 
-    - name: Deploy backend container
+    - name: Desplegar contenedor backend
       community.docker.docker_container:
         name: "{{ api_container_name }}"
         image: "{{ backend_image }}"
@@ -98,13 +158,13 @@
           JENKINS_JOB_NAME: "{{ jenkins_job_name }}"
           JENKINS_VERIFY_SSL: "{{ jenkins_verify_ssl }}"
 
-    - name: Run backend migrations
+    - name: Ejecutar migraciones del backend
       community.docker.docker_container_exec:
         container: "{{ api_container_name }}"
         command: flask --app run.py db upgrade
         chdir: /app
 
-    - name: Seed or update admin user
+    - name: Sembrar o actualizar usuario administrador
       community.docker.docker_container_exec:
         container: "{{ api_container_name }}"
         command: >-
@@ -113,7 +173,7 @@
           flask --app run.py seed-admin"
         chdir: /app
 
-    - name: Deploy frontend container
+    - name: Desplegar contenedor frontend
       community.docker.docker_container:
         name: "{{ web_container_name }}"
         image: "{{ frontend_image }}"
@@ -130,7 +190,7 @@
           FRONTEND_SECRET_KEY: "{{ frontend_secret_key }}"
           BACKEND_DEPLOY_KEY: "{{ deploy_api_key }}"
 
-    - name: Wait for frontend health endpoint
+    - name: Esperar endpoint de salud del frontend
       ansible.builtin.uri:
         url: "http://127.0.0.1:{{ app_port }}/health"
         method: GET

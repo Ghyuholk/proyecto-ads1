@@ -42,11 +42,11 @@ python run.py
 
 Frontend disponible en `http://127.0.0.1:5001`.
 
-## Login y roles
+## Inicio de sesion y roles
 
-- Login frontend: `GET/POST /login`
-- Logout frontend: `GET /logout`
-- Dashboards por rol:
+- Inicio de sesion frontend: `GET/POST /login`
+- Cierre de sesion frontend: `GET /logout`
+- Paneles por rol:
   - `ADMIN -> /dashboard/admin`
   - `CAJERO -> /dashboard/caja`
   - `MESERO -> /dashboard/mesas`
@@ -54,7 +54,7 @@ Frontend disponible en `http://127.0.0.1:5001`.
 
 El frontend guarda `access_token` JWT y `role` en sesión, y envía `Authorization: Bearer <token>` al backend.
 
-Backend auth:
+Autenticacion del backend:
 
 - `POST /auth/login` -> `{ access_token, user }`
 - `GET /auth/me` -> usuario autenticado
@@ -75,7 +75,7 @@ cd backend
 flask --app run.py seed
 ```
 
-Usuarios creados por seed:
+Usuarios creados por semilla:
 
 - `admin / admin123` (ADMIN)
 - `cajero / cajero123` (CAJERO)
@@ -114,7 +114,7 @@ cd backend
 flask --app run.py db stamp head
 ```
 
-## Tests automáticos (unittest)
+## Pruebas automaticas (unittest)
 
 Ejecutar suite crítica:
 
@@ -144,34 +144,37 @@ export BACKEND_API_URL="http://127.0.0.1:5000"
 
 ## Producción (Docker + Gunicorn)
 
-Se agregó runtime productivo para ambos servicios:
+Entorno productivo actual:
 
 - Backend: `backend/Dockerfile` con `gunicorn` en puerto interno `5000`.
 - Frontend: `frontend/Dockerfile` con `gunicorn` en puerto interno `80`.
-- DB central: `docker-compose.yml` con MariaDB en red interna `garrobito_net` (sin exponer DB al host).
+- DB central: MariaDB en red Docker interna.
 
-### Levantar DB central
+### Levantar todo con un comando
 
 ```bash
 cp .env.example .env
-docker compose up -d garrobito_db
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+docker compose up -d --build
 ```
 
-### Build local de imágenes
+Verificación:
 
 ```bash
-docker build -t garrobito-backend:local -f backend/Dockerfile backend
-docker build -t garrobito-frontend:local -f frontend/Dockerfile frontend
+docker compose ps
+curl -s http://127.0.0.1:5000/health && echo
+curl -s http://127.0.0.1:5001/health && echo
 ```
 
 ## CI/CD base (Jenkins + Ansible)
 
 Se agregaron:
 
-- `Jenkinsfile`: build de imágenes, tests backend, selección de puerto libre y deploy.
-- `ansible/app_deploy.yml`: despliegue multi-tenant por base de datos:
+- `Jenkinsfile`: construccion de imagenes, pruebas de backend, seleccion de puerto libre y despliegue.
+- `ansible/app_deploy.yml`: despliegue multiinquilino por base de datos:
   - crea DB `db_<slug>` y usuario `usr_<slug truncado>`,
-  - despliega backend + frontend por tenant,
+  - despliega backend + frontend por cliente,
   - ejecuta `flask --app run.py db upgrade`,
   - ejecuta `flask --app run.py seed-admin`.
 
@@ -188,18 +191,27 @@ ansible-galaxy collection install -r ansible/requirements.yml
 
 ## Solicitud de despliegue desde la web
 
-Se agregó una pantalla para ventas/onboarding:
+Pantalla de registro de cliente:
 
 - Frontend: `GET/POST /onboarding`
-- Backend API: `POST /deployments/tenant`
+- API de backend: `POST /deployments/tenant`
+
+Campos mínimos del formulario:
+
+- `client_name`
+- `slug`
+- `admin_password`
+
+`admin_username` se fija automáticamente en `admin`.
 
 Flujo:
 
-1. Completar formulario de cliente (`client_name`, `slug`, datos de contacto y admin).
-2. Frontend envía la solicitud al backend.
-3. Backend dispara Jenkins (`buildWithParameters`) para ejecutar el pipeline de despliegue.
+1. Cliente completa formulario.
+2. Frontend llama a backend.
+3. Backend valida y dispara Jenkins (`buildWithParameters`).
+4. Jenkins ejecuta Ansible y crea el cliente (`db_<slug>`, contenedor API y Web por cliente).
 
-Variables nuevas (backend):
+Variables backend:
 
 - `DEPLOY_API_KEY`
 - `JENKINS_URL`
@@ -208,6 +220,18 @@ Variables nuevas (backend):
 - `JENKINS_JOB_NAME`
 - `JENKINS_VERIFY_SSL`
 
-Variable nueva (frontend):
+Variables frontend:
 
+- `BACKEND_API_URL`
 - `BACKEND_DEPLOY_KEY` (debe coincidir con `DEPLOY_API_KEY` del backend)
+
+## Despliegue en AWS EC2 (resumen)
+
+1. Clonar repo en EC2 y configurar `.env`, `backend/.env` y `frontend/.env`.
+2. Levantar stack base: `docker compose up -d --build`.
+3. Configurar Jenkins job `garrobito-deploy` con `Pipeline script from SCM`.
+4. Crear credenciales Jenkins:
+   - `mariadb-root-password`
+   - `tenant-admin-password`
+5. Verificar que Jenkins tenga permisos para Docker/Ansible en el host.
+6. Probar `http://<IP_EC2>:5001/onboarding` y confirmar construccion y despliegue del cliente.
