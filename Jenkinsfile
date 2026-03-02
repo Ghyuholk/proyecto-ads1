@@ -65,7 +65,7 @@ pipeline {
               --private-key "${EC2_SSH_KEY}" \
               -e app_name=${APP_NAME} \
               -e build_number=${BUILD_NUMBER} \
-              -e package_path=${PACKAGE_NAME} \
+              -e package_path=${WORKSPACE}/${PACKAGE_NAME} \
               -e ansible_host=${EC2_HOST} \
               -e ansible_user=${EC2_USER} \
               -e ansible_become_password=${EC2_SUDO_PASS} \
