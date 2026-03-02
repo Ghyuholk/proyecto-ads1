@@ -137,6 +137,8 @@
         state: started
         recreate: true
         pull: false
+        extra_hosts:
+          - "host.docker.internal:host-gateway"
         networks:
           - name: "{{ docker_network }}"
         env:

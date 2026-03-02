@@ -30,6 +30,23 @@ def _jenkins_base_config():
     }
 
 
+def _jenkins_auth(cfg):
+    if cfg["user"] and cfg["token"]:
+        return (cfg["user"], cfg["token"])
+    return None
+
+
+def _validate_jenkins_config(cfg):
+    missing = []
+    if not cfg["url"]:
+        missing.append("JENKINS_URL")
+    if not cfg["job"]:
+        missing.append("JENKINS_JOB_NAME")
+    if bool(cfg["user"]) != bool(cfg["token"]):
+        missing.append("JENKINS_USER+JENKINS_API_TOKEN")
+    return missing
+
+
 def _validate_payload(data):
     client_name = (data.get("client_name") or "").strip()
     slug = (data.get("slug") or "").strip().lower()
@@ -67,7 +84,7 @@ def _jenkins_get_crumb(cfg):
     try:
         response = requests.get(
             crumb_url,
-            auth=(cfg["user"], cfg["token"]),
+            auth=_jenkins_auth(cfg),
             timeout=8,
             verify=cfg["verify_ssl"],
         )
@@ -101,8 +118,12 @@ def trigger_tenant_deployment():
         return error_response("No autorizado", 403)
 
     cfg = _jenkins_base_config()
-    if not cfg["url"] or not cfg["user"] or not cfg["token"] or not cfg["job"]:
-        return error_response("Configuración Jenkins incompleta en backend", 500)
+    missing = _validate_jenkins_config(cfg)
+    if missing:
+        return error_response(
+            f"Configuración Jenkins incompleta en backend. Faltan/invalidas: {', '.join(missing)}",
+            500,
+        )
 
     data = request.get_json(silent=True) or {}
     try:
@@ -130,7 +151,7 @@ def trigger_tenant_deployment():
             build_url,
             params=params,
             headers=headers,
-            auth=(cfg["user"], cfg["token"]),
+            auth=_jenkins_auth(cfg),
             timeout=12,
             verify=cfg["verify_ssl"],
         )
@@ -163,8 +184,12 @@ def get_tenant_deployment_status():
         return error_response("No autorizado", 403)
 
     cfg = _jenkins_base_config()
-    if not cfg["url"] or not cfg["user"] or not cfg["token"] or not cfg["job"]:
-        return error_response("Configuración Jenkins incompleta en backend", 500)
+    missing = _validate_jenkins_config(cfg)
+    if missing:
+        return error_response(
+            f"Configuración Jenkins incompleta en backend. Faltan/invalidas: {', '.join(missing)}",
+            500,
+        )
 
     queue_item_url = (request.args.get("queue_item_url") or "").strip()
     if not queue_item_url:
@@ -174,7 +199,7 @@ def get_tenant_deployment_status():
     try:
         queue_response = requests.get(
             queue_api_url,
-            auth=(cfg["user"], cfg["token"]),
+            auth=_jenkins_auth(cfg),
             timeout=8,
             verify=cfg["verify_ssl"],
         )
@@ -213,7 +238,7 @@ def get_tenant_deployment_status():
     try:
         build_response = requests.get(
             build_api_url,
-            auth=(cfg["user"], cfg["token"]),
+            auth=_jenkins_auth(cfg),
             timeout=8,
             verify=cfg["verify_ssl"],
         )

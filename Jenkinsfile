@@ -56,6 +56,12 @@ pipeline {
           string(credentialsId: 'tenant-admin-password', variable: 'DEFAULT_ADMIN_PASSWORD')
         ]) {
           sh '''
+            if [ -f ci/deploy.env ]; then
+              set -a
+              . ci/deploy.env
+              set +a
+            fi
+
             ADMIN_PASS="${ADMIN_PASSWORD}"
             if [ -z "${ADMIN_PASS}" ]; then
               ADMIN_PASS="${DEFAULT_ADMIN_PASSWORD}"
@@ -75,6 +81,12 @@ pipeline {
               -e frontend_image=${FRONTEND_IMAGE} \
               -e admin_username=${ADMIN_USERNAME} \
               -e admin_password="${ADMIN_PASS}" \
+              -e deploy_api_key="${DEPLOY_API_KEY:-}" \
+              -e jenkins_url="${JENKINS_URL:-}" \
+              -e jenkins_user="${JENKINS_USER:-}" \
+              -e jenkins_api_token="${JENKINS_API_TOKEN:-}" \
+              -e jenkins_job_name="${JENKINS_JOB_NAME:-garrobito-deploy}" \
+              -e jenkins_verify_ssl="${JENKINS_VERIFY_SSL:-false}" \
               -e db_root_password=${MARIADB_ROOT_PASSWORD}
           '''
         }
