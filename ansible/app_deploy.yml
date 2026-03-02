@@ -105,22 +105,18 @@
         state: present
 
     - name: Construir imagen backend en EC2
-      community.docker.docker_image:
-        name: "{{ backend_image }}"
-        source: build
-        build:
-          path: "{{ release_dir }}/backend"
-          dockerfile: Dockerfile
-        force_source: true
+      ansible.builtin.shell: docker build -t {{ backend_image }} -f {{ release_dir }}/backend/Dockerfile {{ release_dir }}/backend
+      register: build_backend
+      retries: 3
+      delay: 15
+      until: build_backend.rc == 0
 
     - name: Construir imagen frontend en EC2
-      community.docker.docker_image:
-        name: "{{ frontend_image }}"
-        source: build
-        build:
-          path: "{{ release_dir }}/frontend"
-          dockerfile: Dockerfile
-        force_source: true
+      ansible.builtin.shell: docker build -t {{ frontend_image }} -f {{ release_dir }}/frontend/Dockerfile {{ release_dir }}/frontend
+      register: build_frontend
+      retries: 3
+      delay: 15
+      until: build_frontend.rc == 0
 
     - name: Asegurar que existan la base de datos y el usuario del cliente
       community.docker.docker_container_exec:
